@@ -1,13 +1,25 @@
 const express = require('express');
 const router = express.Router();
-const { addStudent, getStudents } = require('../controllers/studentController');
-const { protect } = require('../middleware/authMiddleware');
+const {
+  getStudents,
+  addStudent,
+  updateStudent,
+  deleteStudent
+} = require('../controllers/studentController');
+const { protect, authorizeRoles } = require('../middleware/authMiddleware');
 
-// GET /api/students - Fetch all students
-router.get('/', getStudents);
+// GET /api/students - View & search students (accessible by authenticated user and admin)
+router.get('/', protect, getStudents);
 
-// POST /api/students - Add a new student (Protected: Requires login)
-router.post('/', protect, addStudent);
+// POST /api/students - Add a new student (Admin only)
+router.post('/', protect, authorizeRoles('admin'), addStudent);
+
+// PUT /api/students/:id - Update student details (Admin only)
+router.put('/:id', protect, authorizeRoles('admin'), updateStudent);
+
+// DELETE /api/students/:id - Delete student record (Admin only)
+router.delete('/:id', protect, authorizeRoles('admin'), deleteStudent);
 
 module.exports = router;
+
 

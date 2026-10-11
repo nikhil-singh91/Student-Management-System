@@ -3,8 +3,17 @@ import { Link } from 'react-router-dom';
 import api from '../services/api';
 
 function Students() {
-  // Check if user is logged in
+  // Check authenticated user and role
   const token = localStorage.getItem('token');
+  const currentUser = (() => {
+    try {
+      const stored = localStorage.getItem('user');
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  })();
+  const isAdmin = currentUser?.role === 'admin';
 
   // Form state for student details
   const [formData, setFormData] = useState({
@@ -34,11 +43,19 @@ function Students() {
     e.preventDefault();
     setStatusMessage({ type: '', text: '' });
 
-    // Ensure user is authenticated
+    // Ensure user is authenticated and is an admin
     if (!token) {
       setStatusMessage({
         type: 'error',
         text: 'Access denied. Please log in before adding a student.'
+      });
+      return;
+    }
+
+    if (!isAdmin) {
+      setStatusMessage({
+        type: 'error',
+        text: 'Access denied: Only administrators are authorized to add students.'
       });
       return;
     }
@@ -52,7 +69,6 @@ function Students() {
       });
       return;
     }
-
 
     try {
       setLoading(true);
@@ -76,15 +92,26 @@ function Students() {
         phone: ''
       });
     } catch (error) {
-      // Show backend error message (e.g. duplicate roll number or validation error)
-      const errorMessage =
-        error.response?.data?.message ||
-        'Failed to connect to the server. Please ensure the backend is running.';
+      if (error.response?.status === 403) {
+        setStatusMessage({
+          type: 'error',
+          text: 'Access denied: You do not have permission to add students. Administrator role required.'
+        });
+      } else if (error.response?.status === 401) {
+        setStatusMessage({
+          type: 'error',
+          text: 'Session expired or not authenticated. Please log in again.'
+        });
+      } else {
+        const errorMessage =
+          error.response?.data?.message ||
+          'Failed to connect to the server. Please ensure the backend is running.';
 
-      setStatusMessage({
-        type: 'error',
-        text: errorMessage
-      });
+        setStatusMessage({
+          type: 'error',
+          text: errorMessage
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -98,12 +125,22 @@ function Students() {
           Enter student information below to add a new record to MongoDB.
         </p>
 
-        {/* Authentication Warning if not logged in */}
+        {/* Not Logged In Warning */}
         {!token && (
           <div className="alert alert-error" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
-            <span>🔒 <strong>Login Required:</strong> You must be logged in to add a student record.</span>
+            <span>🔒 <strong>Login Required:</strong> You must be logged in as an administrator to add a student record.</span>
             <Link to="/login" className="btn btn-primary" style={{ padding: '0.4rem 0.85rem', fontSize: '0.85rem' }}>
               Log In Now
+            </Link>
+          </div>
+        )}
+
+        {/* Non-Admin Warning */}
+        {token && !isAdmin && (
+          <div className="alert alert-error" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
+            <span>🚫 <strong>Admin Access Required:</strong> Your account has regular user permissions. Only administrators can add new students.</span>
+            <Link to="/view-students" className="btn btn-secondary" style={{ padding: '0.4rem 0.85rem', fontSize: '0.85rem' }}>
+              View Students
             </Link>
           </div>
         )}
@@ -115,7 +152,10 @@ function Students() {
           </div>
         )}
 
+        {/* Render form only if logged in as admin */}
+        {isAdmin && (
         <form onSubmit={handleSubmit} className="student-form">
+
           <div className="form-group">
             <label htmlFor="name">Full Name *</label>
             <input
@@ -200,13 +240,15 @@ function Students() {
             />
           </div>
 
-          <button type="submit" className="btn btn-primary" disabled={loading || !token}>
-            {loading ? 'Adding Student...' : !token ? '🔒 Please Log In to Submit' : 'Submit Student'}
+          <button type="submit" className="btn btn-primary" disabled={loading}>
+            {loading ? 'Adding Student...' : 'Submit Student'}
           </button>
         </form>
+        )}
 
       </div>
     </div>
+
   );
 }
 
