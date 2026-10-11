@@ -14,6 +14,7 @@ const emptyForm = {
 };
 
 function Students() {
+  // Form state
   // Check if user is logged in
   const token = localStorage.getItem('token');
 
@@ -27,6 +28,13 @@ function Students() {
     phone: ''
   });
 
+  // Student records and filters
+  const [students, setStudents] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [courseFilter, setCourseFilter] = useState('');
+  const [semesterFilter, setSemesterFilter] = useState('');
+
+  // Submission feedback and loading
   // State for list of students
   const [students, setStudents] = useState([]);
   const [fetching, setFetching] = useState(false);
@@ -34,8 +42,17 @@ function Students() {
 
   // State for submission feedback and loading indicator
   const [loading, setLoading] = useState(false);
-  const [statusMessage, setStatusMessage] = useState({ type: '', text: '' });
+  const [statusMessage, setStatusMessage] = useState({
+    type: '',
+    text: ''
+  });
 
+  // Update form fields
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+
+    setFormData((prevData) => ({
+      ...prevData,
   // Fetch students from backend on mount
   const fetchStudents = async () => {
     try {
@@ -77,6 +94,66 @@ function Students() {
     });
   };
 
+  // Fetch students from the backend
+  const fetchStudents = async () => {
+    try {
+      const response = await api.get('/students');
+      setStudents(response.data.data || []);
+    } catch (error) {
+      setStatusMessage({
+        type: 'error',
+        text: 'Failed to load students. Please check the backend.'
+      });
+    }
+  };
+
+  useEffect(() => {
+    fetchStudents();
+  }, []);
+
+  // Get unique courses and semesters for dropdowns
+  const courses = [
+    ...new Set(
+      students.map((student) => student.course).filter(Boolean)
+    )
+  ];
+
+  const semesters = [
+    ...new Set(
+      students.map((student) => student.semester).filter(Boolean)
+    )
+  ];
+
+  // Search and filter student records
+  const filteredStudents = students.filter((student) => {
+    const query = searchQuery.trim().toLowerCase();
+
+    const matchesSearch =
+      (student.name || '').toLowerCase().includes(query) ||
+      (student.rollNo || '').toLowerCase().includes(query) ||
+      (student.email || '').toLowerCase().includes(query);
+
+    const matchesCourse =
+      !courseFilter || student.course === courseFilter;
+
+    const matchesSemester =
+      !semesterFilter || student.semester === semesterFilter;
+
+    return matchesSearch && matchesCourse && matchesSemester;
+  });
+
+  // Clear all filters
+  const clearFilters = () => {
+    setSearchQuery('');
+    setCourseFilter('');
+    setSemesterFilter('');
+  };
+
+  // Submit the new student form
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    setStatusMessage({ type: '', text: '' });
   // Open the form with existing student details
   const handleEdit = (student) => {
     setEditId(student._id);
@@ -115,8 +192,8 @@ function Students() {
       return;
     }
 
-    // Client-side validation: ensure no empty fields
     const { name, rollNo, email, course, semester, phone } = formData;
+
     if (!name || !rollNo || !email || !course || !semester || !phone) {
       setStatusMessage({
         type: 'error',
@@ -131,16 +208,14 @@ function Students() {
     try {
       setLoading(true);
 
-      // Send POST request to backend API
       const response = await api.post('/students', formData);
 
-      // Show success feedback
       setStatusMessage({
         type: 'success',
         text: response.data.message || 'Student added successfully!'
       });
 
-      // Clear the form fields after successful submission
+      // Clear the form
       setFormData({
         name: '',
         rollNo: '',
@@ -150,10 +225,11 @@ function Students() {
         phone: ''
       });
 
+      // Refresh the student list
+      await fetchStudents();
       // Refresh list to show newly added student
       fetchStudents();
     } catch (error) {
-      // Show backend error message (e.g. duplicate roll number or validation error)
       const errorMessage =
         error.response?.data?.message ||
         'Failed to connect to the server. Please ensure the backend is running.';
@@ -230,7 +306,13 @@ function Students() {
 
   return (
     <div className="page-container">
+      {/* Add Student Form */}
       <div className="card">
+        <h2>Add New Student</h2>
+
+        <p className="subtitle">
+          Enter student information below to add a new record to MongoDB.
+        </p>
         <h2>{editId ? 'Edit Student' : 'Add New Student'}</h2>
 
         {/* Authentication Warning if not logged in */}
@@ -243,7 +325,6 @@ function Students() {
           </div>
         )}
 
-        {/* Success or error message notification */}
         {statusMessage.text && (
           <div className={`alert alert-${statusMessage.type}`}>
             {statusMessage.text}
@@ -325,6 +406,12 @@ function Students() {
             />
           </div>
 
+          <button
+            type="submit"
+            className="btn btn-primary"
+            disabled={loading}
+          >
+            {loading ? 'Adding Student...' : 'Submit Student'}
           <button type="submit" className="btn btn-primary" disabled={loading || !token}>
             {loading ? 'Adding Student...' : !token ? '🔒 Please Log In to Submit' : 'Submit Student'}
           <button type="submit" className="btn btn-primary">
@@ -424,6 +511,87 @@ function Students() {
               </button>
             </div>
           ))
+        )}
+      </div>
+
+      {/* Student Records, Search and Filters */}
+      <div className="card">
+        <h2>Student Records</h2>
+
+        <p className="subtitle">
+          Search by name, roll number, or email. Filter by course or semester.
+        </p>
+
+        <div className="student-filters">
+          <input
+            type="text"
+            placeholder="Search name, roll number, or email..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            aria-label="Search students"
+          />
+
+          <select
+            value={courseFilter}
+            onChange={(e) => setCourseFilter(e.target.value)}
+            aria-label="Filter by course"
+          >
+            <option value="">All Courses</option>
+            {courses.map((course) => (
+              <option key={course} value={course}>
+                {course}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={semesterFilter}
+            onChange={(e) => setSemesterFilter(e.target.value)}
+            aria-label="Filter by semester"
+          >
+            <option value="">All Semesters</option>
+            {semesters.map((semester) => (
+              <option key={semester} value={semester}>
+                {semester}
+              </option>
+            ))}
+          </select>
+
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={clearFilters}
+          >
+            Clear Filters
+          </button>
+        </div>
+
+        <p>
+          Showing {filteredStudents.length} of {students.length} students
+        </p>
+
+        {filteredStudents.length === 0 ? (
+          <p>
+            {students.length === 0
+              ? 'No students found. Add a student using the form above.'
+              : 'No students match your search or filters.'}
+          </p>
+        ) : (
+          <div className="student-list">
+            {filteredStudents.map((student) => (
+              <div
+                className="student-record"
+                key={student._id || student.rollNo}
+              >
+                <h3>{student.name}</h3>
+                <p><strong>Roll Number:</strong> {student.rollNo}</p>
+                <p><strong>Email:</strong> {student.email}</p>
+                <p><strong>Course:</strong> {student.course}</p>
+                <p><strong>Semester:</strong> {student.semester}</p>
+                <p><strong>Phone:</strong> {student.phone || 'Not provided'}</p>
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </div>
