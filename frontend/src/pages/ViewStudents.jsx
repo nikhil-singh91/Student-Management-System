@@ -54,6 +54,10 @@ function ViewStudents() {
           'Failed to connect to the server. Please ensure the backend is running.';
         setErrorMessage(msg);
       }
+      const msg =
+        error.response?.data?.message ||
+        'Failed to connect to the server. Please make sure the backend is running.';
+      setErrorMessage(msg);
     } finally {
       setLoading(false);
     }
